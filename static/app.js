@@ -25,6 +25,7 @@ function resetUI() {
 function showError(message) {
     errorMsg.textContent = message;
     errorMsg.hidden = false;
+    downloadBtn.hidden = true;
     setFormDisabled(false);
     spinner.classList.add("done");
     statusText.textContent = "Failed";

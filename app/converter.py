@@ -55,8 +55,16 @@ def _run_gitbook2pdf(url: str, queue: asyncio.Queue, loop: asyncio.AbstractEvent
         os.chdir(os.path.dirname(os.path.dirname(__file__)))
 
         try:
-            converter = Gitbook2PDF(url)
-            converter.run()
+            # Python 3.10+ doesn't auto-create an event loop in threads.
+            # gitbook2pdf's run() calls asyncio.get_event_loop().run_until_complete(),
+            # so we must create and set one for this thread.
+            thread_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(thread_loop)
+            try:
+                converter = Gitbook2PDF(url)
+                converter.run()
+            finally:
+                thread_loop.close()
         finally:
             os.chdir(original_cwd)
 
