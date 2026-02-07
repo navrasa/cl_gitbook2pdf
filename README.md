@@ -6,7 +6,7 @@ A web application that converts GitBook documentation into downloadable PDF file
 
 ```bash
 # Clone with submodules
-git clone --recurse-submodules <repo-url>
+git clone --recurse-submodules https://github.com/navrasa/cl_gitbook2pdf.git
 cd cl_gitbook2pdf
 
 # Build and run with Docker
