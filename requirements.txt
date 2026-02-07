@@ -1,16 +1,4 @@
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 sse-starlette>=1.6.0
-aiohttp==3.7.4
-async-timeout==3.0.1
-WeasyPrint==45
-beautifulsoup4
-lxml>=4.9.1
-Pillow>=9.0.1
-requests>=2.26.0
-html5lib
-cssselect2==0.2.1
-tinycss2==0.6.1
-cairocffi>=1.0.2
-CairoSVG>=2.5.1
-Pyphen>=0.9.5
+playwright>=1.40.0
