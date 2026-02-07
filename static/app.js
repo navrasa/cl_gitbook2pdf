@@ -79,14 +79,18 @@ form.addEventListener("submit", async (e) => {
         evtSource.close();
     });
 
-    evtSource.addEventListener("error", (e) => {
-        if (e.data) {
-            showError("Conversion failed: " + e.data);
-        } else {
-            showError("Connection to server lost.");
-        }
+    evtSource.addEventListener("failed", (e) => {
+        showError("Conversion failed: " + e.data);
         evtSource.close();
     });
+
+    evtSource.onerror = () => {
+        // Native EventSource error (connection lost). Only show if not already handled.
+        if (!evtSource.CLOSED) {
+            showError("Connection to server lost.");
+            evtSource.close();
+        }
+    };
 
     evtSource.addEventListener("ping", () => {
         // keepalive, ignore

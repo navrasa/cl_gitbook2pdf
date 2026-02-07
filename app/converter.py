@@ -1,6 +1,7 @@
 import asyncio
 import glob
 import os
+import shutil
 import sys
 
 from app.job_store import JobStore
@@ -65,7 +66,7 @@ async def run_conversion(job_id: str, url: str, store: JobStore):
 
             # Move to our output directory
             final_path = os.path.join(_OUTPUT_DIR, filename)
-            os.replace(newest_pdf, final_path)
+            shutil.move(newest_pdf, final_path)
 
             store.update_status(job_id, JobStatus.DONE, filename=filename)
             await queue.put({"event": "done", "data": filename})
@@ -73,4 +74,4 @@ async def run_conversion(job_id: str, url: str, store: JobStore):
         except Exception as e:
             error_msg = str(e)
             store.update_status(job_id, JobStatus.FAILED, error=error_msg)
-            await queue.put({"event": "error", "data": error_msg})
+            await queue.put({"event": "failed", "data": error_msg})

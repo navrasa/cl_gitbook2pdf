@@ -76,7 +76,7 @@ async def job_status(job_id: str, request: Request):
             yield {"event": "done", "data": job.filename}
             return
         if job.status == JobStatus.FAILED:
-            yield {"event": "error", "data": job.error}
+            yield {"event": "failed", "data": job.error}
             return
 
         while True:
@@ -85,7 +85,7 @@ async def job_status(job_id: str, request: Request):
             try:
                 msg = await asyncio.wait_for(queue.get(), timeout=30.0)
                 yield msg
-                if msg["event"] in ("done", "error"):
+                if msg["event"] in ("done", "failed"):
                     break
             except asyncio.TimeoutError:
                 # Send keepalive
