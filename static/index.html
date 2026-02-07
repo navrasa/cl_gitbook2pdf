@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitBook to PDF</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>GitBook to PDF</h1>
+        <p class="subtitle">Convert any GitBook into a downloadable PDF</p>
+
+        <form id="convert-form">
+            <div class="input-group">
+                <input
+                    type="url"
+                    id="url-input"
+                    placeholder="https://your-gitbook-url.com"
+                    required
+                    autocomplete="url"
+                >
+                <button type="submit" id="submit-btn">Convert</button>
+            </div>
+        </form>
+
+        <div id="status" hidden>
+            <div id="status-header">
+                <span id="spinner" class="spinner"></span>
+                <span id="status-text">Converting...</span>
+            </div>
+            <pre id="log"></pre>
+            <a id="download-btn" class="download-btn" hidden download>Download PDF</a>
+        </div>
+
+        <div id="error-msg" class="error" hidden></div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

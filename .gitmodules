@@ -1,0 +1,3 @@
+[submodule "gitbook2pdf"]
+	path = gitbook2pdf
+	url = https://github.com/fuergaosi233/gitbook2pdf.git
