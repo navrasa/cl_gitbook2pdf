@@ -1,84 +1,22 @@
 import asyncio
 import glob
-import io
 import os
 import sys
-import threading
 
 from app.job_store import JobStore
 from app.models import JobStatus
 
-# Limit to 1 concurrent conversion (stdout redirect + chdir are global, plus memory)
+# Limit to 1 concurrent conversion (memory protection)
 _conversion_semaphore = asyncio.Semaphore(1)
 
-
-class ProgressCapture(io.TextIOBase):
-    """Captures print() output and pushes it into an asyncio Queue as SSE events."""
-
-    def __init__(self, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
-        self.queue = queue
-        self.loop = loop
-
-    def write(self, text: str) -> int:
-        text = text.strip()
-        if text:
-            asyncio.run_coroutine_threadsafe(
-                self.queue.put({"event": "progress", "data": text}),
-                self.loop,
-            )
-        return len(text)
-
-    def flush(self):
-        pass
-
-
-def _run_gitbook2pdf(url: str, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> str:
-    """Run gitbook2pdf in a worker thread, capturing stdout for progress."""
-    # Add the submodule to the import path
-    submodule_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "gitbook2pdf")
-    if submodule_dir not in sys.path:
-        sys.path.insert(0, submodule_dir)
-
-    from gitbook2pdf import Gitbook2PDF
-
-    capture = ProgressCapture(queue, loop)
-    old_stdout = sys.stdout
-    sys.stdout = capture
-
-    try:
-        # Ensure output directory exists
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
-        os.makedirs(output_dir, exist_ok=True)
-
-        # gitbook2pdf writes to ./output/ relative to CWD
-        original_cwd = os.getcwd()
-        os.chdir(os.path.dirname(os.path.dirname(__file__)))
-
-        try:
-            # Python 3.10+ doesn't auto-create an event loop in threads.
-            # gitbook2pdf's run() calls asyncio.get_event_loop().run_until_complete(),
-            # so we must create and set one for this thread.
-            thread_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(thread_loop)
-            try:
-                converter = Gitbook2PDF(url)
-                converter.run()
-            finally:
-                thread_loop.close()
-        finally:
-            os.chdir(original_cwd)
-
-        # Find the newest PDF in the output directory
-        pdf_files = glob.glob(os.path.join(output_dir, "*.pdf"))
-        if not pdf_files:
-            raise RuntimeError("Conversion completed but no PDF file was generated")
-        return max(pdf_files, key=os.path.getmtime)
-    finally:
-        sys.stdout = old_stdout
+# Paths
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+_SUBMODULE_DIR = os.path.join(_PROJECT_ROOT, "gitbook2pdf")
+_OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output")
 
 
 async def run_conversion(job_id: str, url: str, store: JobStore):
-    """Main entry point: acquire semaphore, run conversion in thread, update job state."""
+    """Run gitbook2pdf as a subprocess, streaming stdout lines as SSE progress events."""
     queue = store.get_queue(job_id)
     if not queue:
         return
@@ -87,13 +25,51 @@ async def run_conversion(job_id: str, url: str, store: JobStore):
         store.update_status(job_id, JobStatus.CRAWLING, message="Starting conversion...")
         await queue.put({"event": "progress", "data": "Starting conversion..."})
 
-        loop = asyncio.get_running_loop()
+        os.makedirs(_OUTPUT_DIR, exist_ok=True)
+
+        # Ensure the submodule has an output directory too
+        submodule_output = os.path.join(_SUBMODULE_DIR, "output")
+        os.makedirs(submodule_output, exist_ok=True)
 
         try:
-            pdf_path = await asyncio.to_thread(_run_gitbook2pdf, url, queue, loop)
-            filename = os.path.basename(pdf_path)
+            # Run gitbook2pdf as a separate process — completely avoids event loop conflicts
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "gitbook.py", url,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=_SUBMODULE_DIR,
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            )
+
+            # Stream stdout line by line to SSE
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace").strip()
+                if text:
+                    await queue.put({"event": "progress", "data": text})
+
+            await proc.wait()
+
+            if proc.returncode != 0:
+                raise RuntimeError(f"gitbook2pdf exited with code {proc.returncode}")
+
+            # Find the newest PDF in the submodule's output directory
+            pdf_files = glob.glob(os.path.join(submodule_output, "*.pdf"))
+            if not pdf_files:
+                raise RuntimeError("Conversion completed but no PDF file was generated")
+
+            newest_pdf = max(pdf_files, key=os.path.getmtime)
+            filename = os.path.basename(newest_pdf)
+
+            # Move to our output directory
+            final_path = os.path.join(_OUTPUT_DIR, filename)
+            os.replace(newest_pdf, final_path)
+
             store.update_status(job_id, JobStatus.DONE, filename=filename)
             await queue.put({"event": "done", "data": filename})
+
         except Exception as e:
             error_msg = str(e)
             store.update_status(job_id, JobStatus.FAILED, error=error_msg)
