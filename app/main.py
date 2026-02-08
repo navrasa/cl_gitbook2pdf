@@ -39,6 +39,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 class ConvertRequest(BaseModel):
     url: HttpUrl
+    include_subpages: bool = False
 
 
 class ConvertResponse(BaseModel):
@@ -57,7 +58,7 @@ async def convert(req: ConvertRequest):
     store: JobStore = app.state.store
     job_id = uuid.uuid4().hex[:12]
     store.create_job(job_id)
-    asyncio.create_task(run_conversion(job_id, str(req.url), store))
+    asyncio.create_task(run_conversion(job_id, str(req.url), req.include_subpages, store))
     return ConvertResponse(job_id=job_id)
 
 

@@ -189,7 +189,7 @@ async def get_page_title(page):
     return title
 
 
-async def scrape_gitbook(url, output_dir):
+async def scrape_gitbook(url, output_dir, include_subpages=False):
     """Main scraping function."""
     print(f"Launching browser...")
     sys.stdout.flush()
@@ -219,19 +219,23 @@ async def scrape_gitbook(url, output_dir):
         if not safe_title:
             safe_title = "gitbook-export"
 
-        # Extract navigation links
-        print(f"Extracting navigation links...")
-        sys.stdout.flush()
-        nav_links = await extract_nav_links(page, url)
+        # Extract navigation links (only if subpages enabled)
+        if include_subpages:
+            print(f"Extracting navigation links...")
+            sys.stdout.flush()
+            nav_links = await extract_nav_links(page, url)
 
-        if not nav_links:
-            # If no nav links found, just convert the single page
-            print("No navigation found, converting single page...")
+            if not nav_links:
+                print("No navigation found, converting single page...")
+                sys.stdout.flush()
+                nav_links = [{"href": url, "text": site_title}]
+            else:
+                print(f"Found {len(nav_links)} pages to convert")
+                sys.stdout.flush()
+        else:
+            print("Converting single page...")
             sys.stdout.flush()
             nav_links = [{"href": url, "text": site_title}]
-        else:
-            print(f"Found {len(nav_links)} pages to convert")
-            sys.stdout.flush()
 
         # Collect content from each page
         all_sections = []
@@ -388,11 +392,15 @@ async def scrape_gitbook(url, output_dir):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python scraper.py <gitbook-url> [output-dir]", file=sys.stderr)
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = [a for a in sys.argv[1:] if a.startswith("--")]
+
+    if len(args) < 1:
+        print("Usage: python scraper.py <gitbook-url> [output-dir] [--subpages]", file=sys.stderr)
         sys.exit(1)
 
-    url = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else "./output"
+    url = args[0]
+    output_dir = args[1] if len(args) > 1 else "./output"
+    include_subpages = "--subpages" in flags
 
-    asyncio.run(scrape_gitbook(url, output_dir))
+    asyncio.run(scrape_gitbook(url, output_dir, include_subpages))

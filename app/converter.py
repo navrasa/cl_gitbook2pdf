@@ -15,7 +15,7 @@ _SCRAPER_PATH = os.path.join(_PROJECT_ROOT, "scraper.py")
 _OUTPUT_DIR = os.path.join(_PROJECT_ROOT, "output")
 
 
-async def run_conversion(job_id: str, url: str, store: JobStore):
+async def run_conversion(job_id: str, url: str, include_subpages: bool, store: JobStore):
     """Run the Playwright scraper as a subprocess, streaming progress via SSE."""
     queue = store.get_queue(job_id)
     if not queue:
@@ -28,8 +28,11 @@ async def run_conversion(job_id: str, url: str, store: JobStore):
         os.makedirs(_OUTPUT_DIR, exist_ok=True)
 
         try:
+            cmd = [sys.executable, _SCRAPER_PATH, url, _OUTPUT_DIR]
+            if include_subpages:
+                cmd.append("--subpages")
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, _SCRAPER_PATH, url, _OUTPUT_DIR,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env={**os.environ, "PYTHONUNBUFFERED": "1"},

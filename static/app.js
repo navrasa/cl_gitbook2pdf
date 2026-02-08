@@ -1,6 +1,7 @@
 const form = document.getElementById("convert-form");
 const urlInput = document.getElementById("url-input");
 const submitBtn = document.getElementById("submit-btn");
+const subpagesToggle = document.getElementById("subpages-toggle");
 const statusSection = document.getElementById("status");
 const statusText = document.getElementById("status-text");
 const spinner = document.getElementById("spinner");
@@ -11,6 +12,7 @@ const errorMsg = document.getElementById("error-msg");
 function setFormDisabled(disabled) {
     urlInput.disabled = disabled;
     submitBtn.disabled = disabled;
+    subpagesToggle.disabled = disabled;
     submitBtn.textContent = disabled ? "Converting..." : "Convert";
 }
 
@@ -58,7 +60,7 @@ form.addEventListener("submit", async (e) => {
         resp = await fetch("/convert", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({ url, include_subpages: subpagesToggle.checked }),
         });
     } catch (err) {
         showError("Network error: could not reach the server.");
