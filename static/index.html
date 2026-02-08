@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GitBook to PDF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -16,7 +19,7 @@
                 <input
                     type="url"
                     id="url-input"
-                    placeholder="https://your-gitbook-url.com"
+                    placeholder="https://your-gitbook.gitbook.io"
                     required
                     autocomplete="url"
                 >
@@ -30,7 +33,7 @@
                 <span id="status-text">Converting...</span>
             </div>
             <pre id="log"></pre>
-            <a id="download-btn" class="download-btn" hidden download>Download PDF</a>
+            <a id="download-btn" class="download-btn disabled" hidden download>Download PDF</a>
         </div>
 
         <div id="error-msg" class="error" hidden></div>

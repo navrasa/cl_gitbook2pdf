@@ -11,15 +11,27 @@ const errorMsg = document.getElementById("error-msg");
 function setFormDisabled(disabled) {
     urlInput.disabled = disabled;
     submitBtn.disabled = disabled;
+    submitBtn.textContent = disabled ? "Converting..." : "Convert";
+}
+
+function setDownloadEnabled(enabled) {
+    if (enabled) {
+        downloadBtn.classList.remove("disabled");
+        downloadBtn.removeAttribute("tabindex");
+    } else {
+        downloadBtn.classList.add("disabled");
+        downloadBtn.setAttribute("tabindex", "-1");
+    }
 }
 
 function resetUI() {
     statusSection.hidden = true;
     downloadBtn.hidden = true;
+    setDownloadEnabled(false);
     errorMsg.hidden = true;
     logArea.textContent = "";
     statusText.textContent = "Converting...";
-    spinner.classList.remove("done");
+    spinner.className = "spinner";
 }
 
 function showError(message) {
@@ -27,7 +39,7 @@ function showError(message) {
     errorMsg.hidden = false;
     downloadBtn.hidden = true;
     setFormDisabled(false);
-    spinner.classList.add("done");
+    spinner.className = "spinner failed";
     statusText.textContent = "Failed";
 }
 
@@ -72,9 +84,10 @@ form.addEventListener("submit", async (e) => {
         logArea.textContent += "Conversion complete!\n";
         logArea.scrollTop = logArea.scrollHeight;
         statusText.textContent = "Done!";
-        spinner.classList.add("done");
+        spinner.className = "spinner done";
         downloadBtn.href = `/jobs/${job_id}/download`;
         downloadBtn.hidden = false;
+        setDownloadEnabled(true);
         setFormDisabled(false);
         evtSource.close();
     });
@@ -85,7 +98,6 @@ form.addEventListener("submit", async (e) => {
     });
 
     evtSource.onerror = () => {
-        // Native EventSource error (connection lost). Only show if not already handled.
         if (!evtSource.CLOSED) {
             showError("Connection to server lost.");
             evtSource.close();
