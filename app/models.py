@@ -18,4 +18,5 @@ class JobInfo:
     progress_message: str = ""
     filename: str = ""
     error: str = ""
+    cancelled: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)

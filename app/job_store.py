@@ -8,6 +8,7 @@ class JobStore:
     def __init__(self):
         self.jobs: dict[str, JobInfo] = {}
         self.queues: dict[str, asyncio.Queue] = {}
+        self.processes: dict[str, asyncio.subprocess.Process] = {}
 
     def create_job(self, job_id: str) -> JobInfo:
         job = JobInfo(job_id=job_id)
@@ -39,6 +40,23 @@ class JobStore:
 
     def get_queue(self, job_id: str) -> asyncio.Queue | None:
         return self.queues.get(job_id)
+
+    def set_process(self, job_id: str, proc: asyncio.subprocess.Process):
+        self.processes[job_id] = proc
+
+    async def cancel_job(self, job_id: str) -> bool:
+        job = self.jobs.get(job_id)
+        if not job or job.status in (JobStatus.DONE, JobStatus.FAILED):
+            return False
+        job.cancelled = True
+        proc = self.processes.pop(job_id, None)
+        if proc and proc.returncode is None:
+            proc.kill()
+        self.update_status(job_id, JobStatus.FAILED, error="Cancelled by user")
+        queue = self.queues.get(job_id)
+        if queue:
+            await queue.put({"event": "failed", "data": "Cancelled by user"})
+        return True
 
     def cleanup_old_jobs(self, max_age_seconds: int = 3600):
         now = time.time()

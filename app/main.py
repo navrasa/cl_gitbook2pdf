@@ -62,6 +62,18 @@ async def convert(req: ConvertRequest):
     return ConvertResponse(job_id=job_id)
 
 
+@app.post("/jobs/{job_id}/cancel", status_code=200)
+async def cancel_job(job_id: str):
+    store: JobStore = app.state.store
+    job = store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    cancelled = await store.cancel_job(job_id)
+    if not cancelled:
+        raise HTTPException(status_code=409, detail="Job is not running")
+    return {"status": "cancelled"}
+
+
 @app.get("/jobs/{job_id}/status")
 async def job_status(job_id: str, request: Request):
     store: JobStore = app.state.store

@@ -8,15 +8,22 @@ const spinner = document.getElementById("spinner");
 const logArea = document.getElementById("log");
 const downloadBtn = document.getElementById("download-btn");
 const errorMsg = document.getElementById("error-msg");
-const animContainer = document.getElementById("anim-container");
-const unicornBg = document.getElementById("unicorn-bg");
-const oceanScene = document.getElementById("ocean-scene");
 
-function setFormDisabled(disabled) {
-    urlInput.disabled = disabled;
-    submitBtn.disabled = disabled;
-    subpagesToggle.disabled = disabled;
-    submitBtn.textContent = disabled ? "Converting..." : "Convert";
+let currentJobId = null;
+let currentEvtSource = null;
+
+function setConverting(active) {
+    urlInput.disabled = active;
+    subpagesToggle.disabled = active;
+    if (active) {
+        submitBtn.textContent = "Stop conversion";
+        submitBtn.classList.add("stop-btn");
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.textContent = "Convert";
+        submitBtn.classList.remove("stop-btn");
+        submitBtn.disabled = false;
+    }
 }
 
 function setDownloadEnabled(enabled) {
@@ -29,28 +36,6 @@ function setDownloadEnabled(enabled) {
     }
 }
 
-function showUnicorn() {
-    animContainer.classList.add("active");
-    unicornBg.hidden = false;
-    oceanScene.hidden = true;
-    oceanScene.classList.remove("visible");
-}
-
-function showOcean() {
-    unicornBg.hidden = true;
-    oceanScene.hidden = false;
-    // Trigger reflow so transition plays
-    void oceanScene.offsetWidth;
-    oceanScene.classList.add("visible");
-}
-
-function hideAnimations() {
-    animContainer.classList.remove("active");
-    unicornBg.hidden = true;
-    oceanScene.hidden = true;
-    oceanScene.classList.remove("visible");
-}
-
 function resetUI() {
     statusSection.hidden = true;
     downloadBtn.hidden = true;
@@ -59,29 +44,41 @@ function resetUI() {
     logArea.textContent = "";
     statusText.textContent = "Converting...";
     spinner.className = "spinner";
-    hideAnimations();
 }
 
 function showError(message) {
     errorMsg.textContent = message;
     errorMsg.hidden = false;
     downloadBtn.hidden = true;
-    setFormDisabled(false);
+    setConverting(false);
     spinner.className = "spinner failed";
     statusText.textContent = "Failed";
-    hideAnimations();
+}
+
+async function cancelJob() {
+    if (!currentJobId) return;
+    try {
+        await fetch(`/jobs/${currentJobId}/cancel`, { method: "POST" });
+    } catch (_) {
+        // ignore network errors during cancel
+    }
 }
 
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
+    // If already converting, stop it
+    if (currentJobId) {
+        await cancelJob();
+        return;
+    }
+
     const url = urlInput.value.trim();
     if (!url) return;
 
     resetUI();
-    setFormDisabled(true);
+    setConverting(true);
     statusSection.hidden = false;
-    showUnicorn();
 
     let resp;
     try {
@@ -102,8 +99,10 @@ form.addEventListener("submit", async (e) => {
     }
 
     const { job_id } = await resp.json();
+    currentJobId = job_id;
 
     const evtSource = new EventSource(`/jobs/${job_id}/status`);
+    currentEvtSource = evtSource;
 
     evtSource.addEventListener("progress", (e) => {
         logArea.textContent += e.data + "\n";
@@ -115,22 +114,27 @@ form.addEventListener("submit", async (e) => {
         logArea.scrollTop = logArea.scrollHeight;
         statusText.textContent = "Complete";
         spinner.className = "spinner done";
-        showOcean();
         downloadBtn.href = `/jobs/${job_id}/download`;
         downloadBtn.hidden = false;
         setDownloadEnabled(true);
-        setFormDisabled(false);
+        setConverting(false);
+        currentJobId = null;
+        currentEvtSource = null;
         evtSource.close();
     });
 
     evtSource.addEventListener("failed", (e) => {
-        showError("Conversion failed: " + e.data);
+        showError(e.data);
+        currentJobId = null;
+        currentEvtSource = null;
         evtSource.close();
     });
 
     evtSource.onerror = () => {
         if (!evtSource.CLOSED) {
             showError("Connection to server lost.");
+            currentJobId = null;
+            currentEvtSource = null;
             evtSource.close();
         }
     };

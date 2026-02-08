@@ -37,6 +37,7 @@ async def run_conversion(job_id: str, url: str, include_subpages: bool, store: J
                 stderr=asyncio.subprocess.STDOUT,
                 env={**os.environ, "PYTHONUNBUFFERED": "1"},
             )
+            store.set_process(job_id, proc)
 
             # Stream stdout line by line to SSE
             while True:
@@ -48,6 +49,11 @@ async def run_conversion(job_id: str, url: str, include_subpages: bool, store: J
                     await queue.put({"event": "progress", "data": text})
 
             await proc.wait()
+
+            # If cancelled, the cancel handler already sent the failure event
+            job = store.get_job(job_id)
+            if job and job.cancelled:
+                return
 
             if proc.returncode != 0:
                 raise RuntimeError(f"Scraper exited with code {proc.returncode}")
