@@ -8,6 +8,9 @@ const spinner = document.getElementById("spinner");
 const logArea = document.getElementById("log");
 const downloadBtn = document.getElementById("download-btn");
 const errorMsg = document.getElementById("error-msg");
+const animContainer = document.getElementById("anim-container");
+const unicornBg = document.getElementById("unicorn-bg");
+const oceanScene = document.getElementById("ocean-scene");
 
 function setFormDisabled(disabled) {
     urlInput.disabled = disabled;
@@ -26,6 +29,28 @@ function setDownloadEnabled(enabled) {
     }
 }
 
+function showUnicorn() {
+    animContainer.classList.add("active");
+    unicornBg.hidden = false;
+    oceanScene.hidden = true;
+    oceanScene.classList.remove("visible");
+}
+
+function showOcean() {
+    unicornBg.hidden = true;
+    oceanScene.hidden = false;
+    // Trigger reflow so transition plays
+    void oceanScene.offsetWidth;
+    oceanScene.classList.add("visible");
+}
+
+function hideAnimations() {
+    animContainer.classList.remove("active");
+    unicornBg.hidden = true;
+    oceanScene.hidden = true;
+    oceanScene.classList.remove("visible");
+}
+
 function resetUI() {
     statusSection.hidden = true;
     downloadBtn.hidden = true;
@@ -34,6 +59,7 @@ function resetUI() {
     logArea.textContent = "";
     statusText.textContent = "Converting...";
     spinner.className = "spinner";
+    hideAnimations();
 }
 
 function showError(message) {
@@ -43,6 +69,7 @@ function showError(message) {
     setFormDisabled(false);
     spinner.className = "spinner failed";
     statusText.textContent = "Failed";
+    hideAnimations();
 }
 
 form.addEventListener("submit", async (e) => {
@@ -54,6 +81,7 @@ form.addEventListener("submit", async (e) => {
     resetUI();
     setFormDisabled(true);
     statusSection.hidden = false;
+    showUnicorn();
 
     let resp;
     try {
@@ -85,8 +113,9 @@ form.addEventListener("submit", async (e) => {
     evtSource.addEventListener("done", (e) => {
         logArea.textContent += "Conversion complete!\n";
         logArea.scrollTop = logArea.scrollHeight;
-        statusText.textContent = "Done!";
+        statusText.textContent = "Complete";
         spinner.className = "spinner done";
+        showOcean();
         downloadBtn.href = `/jobs/${job_id}/download`;
         downloadBtn.hidden = false;
         setDownloadEnabled(true);
