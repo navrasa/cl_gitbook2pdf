@@ -64,9 +64,8 @@ async def extract_nav_links(page, base_url):
 
 
 async def extract_page_content(page):
-    """Extract the main content area from a GitBook page."""
+    """Extract the main content area from a GitBook page, cleaning up images and icons."""
     content = await page.evaluate("""() => {
-        // Try multiple selectors for different GitBook versions
         const selectors = [
             'main article',
             'main',
@@ -80,18 +79,102 @@ async def extract_page_content(page):
             '.content',
         ];
 
+        let el = null;
         for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && el.innerHTML.trim().length > 50) {
-                // Remove navigation, footer, and interactive elements
-                const clone = el.cloneNode(true);
-                clone.querySelectorAll('nav, footer, [class*="navigation"], [class*="pagination"], button, [class*="edit"]').forEach(e => e.remove());
-                return clone.innerHTML;
+            const candidate = document.querySelector(sel);
+            if (candidate && candidate.innerHTML.trim().length > 50) {
+                el = candidate;
+                break;
             }
         }
+        if (!el) return document.body.innerHTML;
 
-        // Fallback: get body content
-        return document.body.innerHTML;
+        const clone = el.cloneNode(true);
+
+        // Remove navigation, footer, interactive, and decorative UI elements
+        clone.querySelectorAll([
+            'nav', 'footer', 'button', 'header',
+            '[class*="navigation"]', '[class*="pagination"]',
+            '[class*="edit"]', '[class*="sidebar"]',
+            '[class*="toolbar"]', '[class*="breadcrumb"]',
+            '[class*="search"]', '[class*="modal"]',
+            '[class*="cookie"]', '[class*="banner"]',
+            'script', 'style', 'noscript', 'iframe',
+        ].join(', ')).forEach(e => e.remove());
+
+        // Convert all image src to absolute URLs
+        const baseUrl = window.location.origin;
+        clone.querySelectorAll('img').forEach(img => {
+            const src = img.getAttribute('src');
+            if (!src) {
+                img.remove();
+                return;
+            }
+
+            // Remove data-uri placeholders / tiny inline SVGs / blob URLs
+            if (src.startsWith('blob:')) {
+                img.remove();
+                return;
+            }
+
+            // Convert relative URLs to absolute
+            if (src.startsWith('/')) {
+                img.setAttribute('src', baseUrl + src);
+            } else if (src.startsWith('./') || src.startsWith('../')) {
+                img.setAttribute('src', new URL(src, window.location.href).href);
+            } else if (!src.startsWith('http') && !src.startsWith('data:')) {
+                img.setAttribute('src', new URL(src, window.location.href).href);
+            }
+
+            // Remove srcset to avoid confusion
+            img.removeAttribute('srcset');
+            img.removeAttribute('loading');
+        });
+
+        // Remove standalone SVG elements (often decorative icons)
+        clone.querySelectorAll('svg').forEach(svg => {
+            // Keep SVGs that are inside meaningful content (like diagrams)
+            // Remove ones that are small icons (typically < 48px)
+            const width = svg.getAttribute('width');
+            const height = svg.getAttribute('height');
+            const viewBox = svg.getAttribute('viewBox');
+            let isSmall = false;
+
+            if (width && parseInt(width) < 48) isSmall = true;
+            if (height && parseInt(height) < 48) isSmall = true;
+            if (!width && !height && viewBox) {
+                const parts = viewBox.split(/[\\s,]+/);
+                if (parts.length === 4 && parseInt(parts[2]) < 48) isSmall = true;
+            }
+            // If no size info at all, likely an icon
+            if (!width && !height && !viewBox) isSmall = true;
+
+            if (isSmall) svg.remove();
+        });
+
+        // Remove empty anchor tags that wrapped icons
+        clone.querySelectorAll('a').forEach(a => {
+            if (a.textContent.trim() === '' && !a.querySelector('img')) {
+                a.remove();
+            }
+        });
+
+        // Remove images that are likely broken icons (very small dimensions in style)
+        clone.querySelectorAll('img').forEach(img => {
+            const style = img.getAttribute('style') || '';
+            const widthMatch = style.match(/width:\\s*(\\d+)px/);
+            const heightMatch = style.match(/height:\\s*(\\d+)px/);
+            if (widthMatch && parseInt(widthMatch[1]) < 30) { img.remove(); return; }
+            if (heightMatch && parseInt(heightMatch[1]) < 30) { img.remove(); return; }
+
+            // Remove images with icon-like class names
+            const cls = (img.className || '') + ' ' + (img.parentElement?.className || '');
+            if (/\\b(icon|emoji|logo-icon|favicon)\\b/i.test(cls)) {
+                img.remove();
+            }
+        });
+
+        return clone.innerHTML;
     }""")
     return content
 
@@ -263,9 +346,28 @@ async def scrape_gitbook(url, output_dir):
         print("Generating PDF, please wait...")
         sys.stdout.flush()
 
-        # Set content to the combined HTML
+        # Set content and wait for all images to load
         await page.set_content(combined_html, wait_until="networkidle")
-        await page.wait_for_timeout(1000)
+
+        # Wait for all images to finish loading (or fail gracefully)
+        await page.evaluate("""() => {
+            const images = Array.from(document.querySelectorAll('img'));
+            return Promise.allSettled(
+                images
+                    .filter(img => !img.complete)
+                    .map(img => new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = () => {
+                            // Remove broken images instead of showing broken icon
+                            img.remove();
+                            resolve();
+                        };
+                        // Timeout per image
+                        setTimeout(() => { img.remove(); resolve(); }, 8000);
+                    }))
+            );
+        }""")
+        await page.wait_for_timeout(500)
 
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, f"{safe_title}.pdf")
