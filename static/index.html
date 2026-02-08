@@ -6,7 +6,7 @@
     <title>GitBook to PDF</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -26,9 +26,9 @@
                 <button type="submit" id="submit-btn">Convert</button>
             </div>
             <label class="toggle-row" for="subpages-toggle">
-                <span class="toggle-label">Include subpages</span>
                 <input type="checkbox" id="subpages-toggle" class="toggle-input">
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">Include subpages</span>
             </label>
         </form>
 
@@ -38,7 +38,7 @@
                 <span id="status-text">Converting...</span>
             </div>
             <pre id="log"></pre>
-            <a id="download-btn" class="download-btn disabled" hidden download>Download PDF</a>
+            <a id="download-btn" class="geist-btn geist-btn-success disabled" hidden download>Download PDF</a>
         </div>
 
         <div id="error-msg" class="error" hidden></div>
